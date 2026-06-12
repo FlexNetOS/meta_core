@@ -1,0 +1,10 @@
+{
+  "schema": "handoff.context_capsule.v1",
+  "project_name": "meta_core",
+  "role": "Rust library crate of shared infrastructure for the meta CLI ecosystem: ~/.meta/ data-directory management, PID-staleness file locking, atomic lock-protected JSON store, and a large .meta.yaml config module (config.rs ~40K). It is a dependency layer consumed by the other meta_* crates, not an executable.",
+  "plane": "foundation",
+  "tier": "A",
+  "northstar": "Meta makes multi-repo feel like monorepo without the downsides; the canon machinery stays green, versioned by the parent distribution.",
+  "next_command": "Plan in kb first (git kb board); mint execution cards via hf (ADR-0003)",
+  "source": "ARCHITECTURE-TRUTH.md census 2026-06-12"
+}
