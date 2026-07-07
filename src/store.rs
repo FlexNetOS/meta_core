@@ -7,7 +7,20 @@
 use anyhow::{Context, Result};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+fn temp_path_for(path: &Path) -> PathBuf {
+    let counter = TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let pid = std::process::id();
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("store");
+    path.with_file_name(format!("{file_name}.{pid}.{counter}.tmp"))
+}
 
 /// Read a JSON file, returning `T::default()` if the file doesn't exist.
 ///
@@ -30,7 +43,7 @@ pub fn read<T: DeserializeOwned + Default>(path: &Path) -> Result<T> {
 
 /// Write data to a JSON file atomically.
 ///
-/// Writes to a temporary file (`.tmp` suffix) then renames to the target path.
+/// Writes to a unique temporary sibling file then renames to the target path.
 /// This ensures readers never see a partially-written file.
 pub fn write_atomic<T: Serialize>(path: &Path, data: &T) -> Result<()> {
     // Ensure parent directory exists
@@ -41,7 +54,7 @@ pub fn write_atomic<T: Serialize>(path: &Path, data: &T) -> Result<()> {
         }
     }
 
-    let tmp_path = path.with_extension("tmp");
+    let tmp_path = temp_path_for(path);
 
     let json =
         serde_json::to_string_pretty(data).with_context(|| "Failed to serialize store data")?;
@@ -122,6 +135,20 @@ mod tests {
 
         let store = TestStore::default();
         write_atomic(&path, &store).unwrap();
+        assert!(path.exists());
+    }
+
+    #[test]
+    fn test_write_atomic_does_not_clobber_fixed_tmp_sibling() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("test.json");
+        let fixed_tmp = path.with_extension("tmp");
+        std::fs::write(&fixed_tmp, "sentinel").unwrap();
+
+        let store = TestStore::default();
+        write_atomic(&path, &store).unwrap();
+
+        assert_eq!(std::fs::read_to_string(&fixed_tmp).unwrap(), "sentinel");
         assert!(path.exists());
     }
 
